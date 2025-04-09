@@ -21,6 +21,7 @@ var (
 )
 
 func main() {
+	//如果是访问集群， 只需要连接任意一个即可
 	cli, err := pkg.NewMinIOClient("localhost:9000", "minioadmin", "minioadmin", false)
 	if err != nil {
 		log.Fatalf("init minio client failed: %v", err)

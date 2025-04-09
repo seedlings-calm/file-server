@@ -19,7 +19,7 @@
     └── start.sh //启动 minio 服务
 ```
 
-#### 步骤
+#### 单服务器部署步骤
 
 1. 启动 docker 服务
 2. 当前目录执行 docker-compose up -d
@@ -31,3 +31,5 @@
 warning::
 
 容器之间互相访问使用 http:///host.docker.internal:9000 或者 http://{容器名称}:port
+
+#### 集群的部署配置和启动 [multiple-service](./multiple-service/)

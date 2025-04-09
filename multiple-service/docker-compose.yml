@@ -1,0 +1,124 @@
+services:
+  minio1:
+    image: minio/minio
+    container_name: minio1
+    environment:
+      CONTAINER_NAME: minio1
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+    volumes:
+      - ./minio1/data:/data
+      - ./start.sh:/start.sh
+      - ./init.sh:/init.sh
+    networks:
+      - minio-net
+    ports:
+      - "9000:9000"
+      - "9011:9001"
+    entrypoint: ["/bin/sh", "-c", "/start.sh"]
+    restart: always
+
+  minio2:
+    image: minio/minio
+    container_name: minio2
+    environment:
+      CONTAINER_NAME: minio2
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+    volumes:
+      - ./minio2/data:/data
+      - ./start.sh:/start.sh
+      - ./init.sh:/init.sh
+    networks:
+      - minio-net
+    ports:
+      - "9002:9000"
+      - "9012:9001"
+    entrypoint: ["/bin/sh", "-c", "/start.sh"]
+    restart: always
+
+  minio3:
+    image: minio/minio
+    container_name: minio3
+    environment:
+      CONTAINER_NAME: minio3
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+
+    volumes:
+      - ./minio3/data:/data
+      - ./start.sh:/start.sh
+      - ./init.sh:/init.sh
+    networks:
+      - minio-net
+    ports:
+      - "9003:9000"
+      - "9013:9001"
+
+    entrypoint: ["/bin/sh", "-c", "/start.sh"]
+    restart: always
+  minio4:
+    image: minio/minio
+    container_name: minio4
+    environment:
+      CONTAINER_NAME: minio4
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+
+    volumes:
+      - ./minio4/data:/data
+      - ./start.sh:/start.sh
+      - ./init.sh:/init.sh
+    networks:
+      - minio-net
+    ports:
+      - "9004:9000"
+      - "9014:9001"
+    entrypoint: ["/bin/sh", "-c", "/start.sh"]
+    restart: always
+
+  nginx:
+    image: nginx:latest
+    container_name: nginxs
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - minio1
+      - minio2
+      - minio3
+      - minio4
+    networks:
+      - minio-net
+    restart: always
+  prometheus:
+      image: prom/prometheus
+      container_name: multiple-prometheus
+      ports:
+        - "9090:9090"
+      volumes:
+        - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      networks:
+        - minio-net
+
+  grafana:
+      image: grafana/grafana
+      container_name: multiple-grafana
+      ports:
+        - "3000:3000"
+      environment:
+        - GF_SECURITY_ADMIN_USER=minioadmin
+        - GF_SECURITY_ADMIN_PASSWORD=minioadmin
+      depends_on:
+        - prometheus
+      networks:
+        - minio-net
+
+networks:
+  minio-net:
+    driver: bridge
