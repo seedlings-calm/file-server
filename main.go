@@ -3,8 +3,10 @@ package main
 import (
 	"file-server/pkg"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -26,6 +28,7 @@ func main() {
 	minioClient = cli
 	r := gin.Default()
 	r.POST("/upload", uploadFile)
+	r.GET("/download", downloadFile)
 	r.Run(":8880")
 }
 
@@ -79,6 +82,48 @@ func uploadFile(c *gin.Context) {
 	// 返回上传成功的响应
 	c.JSON(http.StatusOK, gin.H{
 		"message": "File uploaded successfully",
-		"url":     fmt.Sprintf("http://localhost:80/%s", bucketName+"/"+folerName+objectName),
+		"baseUrl": "http://localhost/files/", //nginx代理地址
+		"fileUrl": folerName + "/" + objectName,
+	})
+}
+
+// fileUrl 值： images/20231001_123456789.jpg
+func downloadFile(c *gin.Context) {
+	fileUrl := c.Query("fileUrl")
+	if fileUrl == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No fileUrl provided"})
+		return
+	}
+	//拆分url为目录和文件名
+	arrFile := strings.Split(fileUrl, "/")
+	if len(arrFile) != 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Error fileUrl param"})
+		return
+	}
+	object, err := minioClient.DownloadFile(c, bucketName, arrFile[0], arrFile[1])
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DownloadFile err to : %v", err)})
+		return
+	}
+	defer object.Close()
+
+	// 创建本地文件
+	localFile, err := os.Create("./download/" + arrFile[1])
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create local file: %v", err)})
+		return
+	}
+	defer localFile.Close()
+
+	// 将从 MinIO 下载的数据写入到本地文件
+	_, err = io.Copy(localFile, object)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to write to local file: %v", err)})
+		return
+	}
+	// 返回下载成功的响应
+	c.JSON(http.StatusOK, gin.H{
+		"message": "File download successfully",
+		"fileUrl": "./download/" + arrFile[1],
 	})
 }

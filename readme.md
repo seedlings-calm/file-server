@@ -27,3 +27,7 @@
 4. curl http://localhost:9000/minio/v2/metrics/cluster 看是否返回的有指标数据，不可浏览器访问，会被重定向到 9001 控制面板服务
 5. 登录 grafana， 添加 data sources （Prometheus 数据源（URL 填 http://prometheus:9090））
 6. import dashboard， 输入 minIO dashboard id：13502 或上传 官方 [JSON 模板](https://github.com/minio/minio/blob/master/docs/metrics/prometheus/grafana/minio-dashboard.json)
+
+warning::
+
+容器之间互相访问使用 http:///host.docker.internal:9000 或者 http://{容器名称}:port
