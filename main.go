@@ -30,6 +30,7 @@ func main() {
 	r := gin.Default()
 	r.POST("/upload", uploadFile)
 	r.GET("/download", downloadFile)
+	r.GET("/list", listFile)
 	r.Run(":8880")
 }
 
@@ -126,5 +127,34 @@ func downloadFile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "File download successfully",
 		"fileUrl": "./download/" + arrFile[1],
+	})
+}
+
+func listFile(c *gin.Context) {
+	bucketName := c.Query("bucket")
+	if bucketName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No bucket provided"})
+		return
+	}
+	folerName := c.Query("folder")
+	if folerName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No folder provided"})
+		return
+	}
+	// 获取文件列表
+	files, err := minioClient.ListFiles(c, bucketName, folerName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to list files: %v", err)})
+		return
+	}
+
+	// 返回文件列表
+	fileUrls := make([]interface{}, len(files))
+	for i, file := range files {
+		fileUrls[i] = file
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "File list successfully",
+		"fileUrls": fileUrls,
 	})
 }
