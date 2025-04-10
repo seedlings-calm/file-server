@@ -33,3 +33,35 @@ warning::
 容器之间互相访问使用 http:///host.docker.internal:9000 或者 http://{容器名称}:port
 
 #### 集群的部署配置和启动 [multiple-service](./multiple-service/)
+
+#### minio 客户端 mc 的功能描述
+
+1. 给 minio 服务起个别名，用于其他命令的使用
+
+```shell
+mc alias set myminio http://minio:9000 minioadmin minio123456
+```
+
+2. 在 myminio 服务中，创建一个 bucket
+
+```shell
+mc mb -p myminio/public || "public bucket already exists"
+```
+
+3. 设置 bucket 的访问权限为匿名下载访问（公共访问）
+
+```shell
+mc anonymous set download myminio/public
+```
+
+4. 列出 myminio 服务中，所有 bucket
+
+```shell
+mc ls myminio
+```
+
+5. 列出 myminio 服务中，public bucket 下的所有对象
+
+```shell
+mc ls myminio/public
+```

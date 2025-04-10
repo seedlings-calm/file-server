@@ -110,3 +110,16 @@ func (m *MinIOClient) DeleteFile(ctx context.Context, bucket, folder, objectName
 	objectPath := ApplyPathStrategy(folder, objectName)
 	return m.Client.RemoveObject(ctx, bucket, objectPath, minio.RemoveObjectOptions{})
 }
+
+// ListFiles lists all files in a folder
+func (m *MinIOClient) ListFiles(ctx context.Context, bucket, folder string) ([]minio.ObjectInfo, error) {
+	objectPath := ApplyPathStrategy(folder, "")
+	objects := make([]minio.ObjectInfo, 0)
+	for object := range m.Client.ListObjects(ctx, bucket, minio.ListObjectsOptions{Prefix: objectPath, Recursive: true}) {
+		if object.Err != nil {
+			return nil, object.Err
+		}
+		objects = append(objects, object)
+	}
+	return objects, nil
+}
