@@ -108,7 +108,7 @@ func downloadFile(c *gin.Context) {
 		return
 	}
 	defer object.Close()
-
+	
 	// 创建本地文件
 	localFile, err := os.Create("./download/" + arrFile[1])
 	if err != nil {
@@ -130,6 +130,8 @@ func downloadFile(c *gin.Context) {
 	})
 }
 
+// list?bucket=public&folder=images
+// bucket 必填, folder 选填
 func listFile(c *gin.Context) {
 	bucketName := c.Query("bucket")
 	if bucketName == "" {
@@ -137,10 +139,6 @@ func listFile(c *gin.Context) {
 		return
 	}
 	folerName := c.Query("folder")
-	if folerName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No folder provided"})
-		return
-	}
 	// 获取文件列表
 	files, err := minioClient.ListFiles(c, bucketName, folerName)
 	if err != nil {
