@@ -14,10 +14,26 @@ import (
 )
 
 var (
-	minioClient     *pkg.MinIOClient
-	bucketName      = "public" //桶
-	folerNameImages = "images" //图片文件夹
-	folerNameVideos = "videos" //视频文件夹
+	MinioClientUser = []map[string]string{
+		{
+			"accessKey": "minioadmin",
+			"secretKey": "minioadmin",
+		},
+		{
+			"accessKey": "apiUser",
+			"secretKey": "apiUser123456",
+		},
+
+		{
+			"accessKey": "sysUser",
+			"secretKey": "sysUser123456",
+		},
+	}
+	minioClient          *pkg.MinIOClient
+	publicBucketName     = "public" //桶
+	userSourceBucketName = "usersource"
+	folerNameImages      = "images" //图片文件夹
+	folerNameVideos      = "videos" //视频文件夹
 )
 
 func main() {
@@ -28,6 +44,7 @@ func main() {
 	}
 	minioClient = cli
 	r := gin.Default()
+	r.GET("policy", valitePolicy)
 	r.POST("/upload", uploadFile)
 	r.GET("/download", downloadFile)
 	r.GET("/list", listFile)
@@ -71,12 +88,12 @@ func uploadFile(c *gin.Context) {
 
 	// 上传文件到 MinIO
 	objectName := fmt.Sprintf("%s_%d.%s", time.Now().Format("20060102_150405"), time.Now().UnixNano(), ext)
-	err = minioClient.EnsureBucket(c, bucketName)
+	err = minioClient.EnsureBucket(c, publicBucketName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("ensureBucket to MinIO: %v", err)})
 		return
 	}
-	_, err = minioClient.UploadMultipartFile(c, bucketName, folerName, objectName, srcFile, files.Size, contentType)
+	_, err = minioClient.UploadMultipartFile(c, publicBucketName, folerName, objectName, srcFile, files.Size, contentType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to upload to MinIO: %v", err)})
 		return
@@ -103,7 +120,7 @@ func downloadFile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error fileUrl param"})
 		return
 	}
-	object, err := minioClient.DownloadFile(c, bucketName, arrFile[0], arrFile[1])
+	object, err := minioClient.DownloadFile(c, publicBucketName, arrFile[0], arrFile[1])
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DownloadFile err to : %v", err)})
 		return
@@ -179,4 +196,35 @@ func migrateFile(c *gin.Context) {
 		"message": err,
 		"result":  result,
 	})
+}
+
+func valitePolicy(c *gin.Context) {
+	var apiUser = MinioClientUser[1]
+	apiUserCli, err := pkg.NewMinIOClient("localhost:9000", apiUser["accessKey"], apiUser["secretKey"], false)
+	if err != nil {
+		log.Fatalf("init minio client failed: %v", err)
+	}
+	err = apiUserCli.DeleteFile(c, publicBucketName, "images/", "1.png")
+	if err != nil {
+		log.Printf("apiUser delete:%s", err.Error())
+	}
+	list, err := apiUserCli.ListFiles(c, publicBucketName, "images/")
+	log.Printf("public listFile: %v,%s", list, err)
+	list1, err := apiUserCli.ListFiles(c, userSourceBucketName, "")
+	log.Printf("usersource listFile: %v,%s", list1, err)
+
+	var sysUser = MinioClientUser[2]
+	sysUserCli, err := pkg.NewMinIOClient("localhost:9000", sysUser["accessKey"], sysUser["secretKey"], false)
+	if err != nil {
+		log.Fatalf("init minio client failed: %v", err)
+	}
+	err = sysUserCli.DeleteFile(c, userSourceBucketName, "user-1", "1.png")
+	if err != nil {
+		log.Printf("sysUser delete:%s", err.Error())
+	}
+
+	list2, err := sysUserCli.ListFiles(c, publicBucketName, "images/")
+	log.Printf("public listFile: %v,%s", list2, err)
+	list3, err := sysUserCli.ListFiles(c, userSourceBucketName, "")
+	log.Printf("usersource listFile: %v,%s", list3, err)
 }
