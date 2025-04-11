@@ -31,6 +31,7 @@ func main() {
 	r.POST("/upload", uploadFile)
 	r.GET("/download", downloadFile)
 	r.GET("/list", listFile)
+	r.GET("/migrate", migrateFile)
 	r.Run(":8880")
 }
 
@@ -108,7 +109,7 @@ func downloadFile(c *gin.Context) {
 		return
 	}
 	defer object.Close()
-	
+
 	// 创建本地文件
 	localFile, err := os.Create("./download/" + arrFile[1])
 	if err != nil {
@@ -154,5 +155,28 @@ func listFile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "File list successfully",
 		"fileUrls": fileUrls,
+	})
+}
+
+func migrateFile(c *gin.Context) {
+	srcBucket := "public"
+	dstBucket := "publicv1"
+	prefixes := []string{""}
+	overwrite := false
+	removeSource := false
+
+	// 可选的重命名函数，例如将所有对象的前缀 "images/" 替换为 "new-images/"
+	renameFunc := func(key string) string {
+		if strings.HasPrefix(key, "images/") {
+			return "new-images/" + strings.TrimPrefix(key, "images/")
+		}
+		return key
+	}
+	// 迁移文件
+	result, err := minioClient.MigrateFiles(c, srcBucket, dstBucket, prefixes, overwrite, removeSource, renameFunc)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": err,
+		"result":  result,
 	})
 }

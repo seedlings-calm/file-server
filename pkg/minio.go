@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/url"
@@ -122,4 +123,78 @@ func (m *MinIOClient) ListFiles(ctx context.Context, bucket, folder string) ([]m
 		objects = append(objects, object)
 	}
 	return objects, nil
+}
+
+type MigrateResult struct {
+	SuccessCount int
+	Failed       []MigrateError
+}
+
+type MigrateError struct {
+	ObjectKey string
+	Error     string
+}
+
+// MigrateFiles migrates multiple objects from one bucket to another
+// prefixes 参数类型：[]string{"images/", "videos/"} 目录迁移  []string{"static/logo.png"}文件迁移，  []string{""},nil 整个bucket迁移
+func (m *MinIOClient) MigrateFiles(ctx context.Context, srcBucket, dstBucket string, prefixes []string, overwrite, removeSource bool, renameFunc func(string) string) (*MigrateResult, error) {
+	result := &MigrateResult{}
+
+	if len(prefixes) == 0 {
+		prefixes = []string{""}
+	}
+
+	err := m.EnsureBucket(ctx, dstBucket)
+	if err != nil {
+		return nil, fmt.Errorf("目标 bucket 创建失败: %w", err)
+	}
+
+	keysToMigrate := make(map[string]struct{})
+	for _, prefix := range prefixes {
+		opts := minio.ListObjectsOptions{
+			Prefix:    prefix,
+			Recursive: true,
+		}
+		for obj := range m.Client.ListObjects(ctx, srcBucket, opts) {
+			if obj.Err != nil {
+				result.Failed = append(result.Failed, MigrateError{ObjectKey: obj.Key, Error: obj.Err.Error()})
+				continue
+			}
+			keysToMigrate[obj.Key] = struct{}{}
+		}
+	}
+
+	for key := range keysToMigrate {
+		dstKey := key
+		if renameFunc != nil {
+			dstKey = renameFunc(key)
+		}
+
+		if !overwrite {
+			_, err := m.Client.StatObject(ctx, dstBucket, dstKey, minio.StatObjectOptions{})
+			if err == nil {
+				result.Failed = append(result.Failed, MigrateError{ObjectKey: dstKey, Error: "目标已存在,执行跳过"})
+				continue
+			}
+		}
+
+		src := minio.CopySrcOptions{Bucket: srcBucket, Object: key}
+		dst := minio.CopyDestOptions{Bucket: dstBucket, Object: dstKey}
+
+		_, err := m.Client.CopyObject(ctx, dst, src)
+		if err != nil {
+			result.Failed = append(result.Failed, MigrateError{ObjectKey: key, Error: fmt.Sprintf("复制%s -> %s 失败: %s", key, dstKey, err.Error())})
+			continue
+		}
+		if removeSource {
+			err = m.Client.RemoveObject(ctx, srcBucket, key, minio.RemoveObjectOptions{})
+			if err != nil {
+				result.Failed = append(result.Failed, MigrateError{ObjectKey: key, Error: fmt.Sprintf("移除源目标的文件失败: %s", err.Error())})
+				continue
+			}
+		}
+		result.SuccessCount++
+	}
+
+	return result, nil
 }
